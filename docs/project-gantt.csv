@@ -1,0 +1,14 @@
+Task,Start Date,End Date,Duration (Days),Phase,Owner,Status
+"[Week 1] Project Kickoff & Planning",2026-10-01,2026-10-03,3,Planning,"@Adhiryansyah20 / @radenelsa7-bot",Open
+"[Phase 1] Requirement Gathering & Business Analysis",2026-10-04,2026-10-07,4,Requirements,"@Adhiryansyah20 / @radenelsa7-bot",Open
+"[Phase 1] Technical Feasibility & High-Level Architecture",2026-10-08,2026-10-12,5,Architecture,"@Adhiryansyah20 / @radenelsa7-bot",Open
+"[Week 2] UX/UI Wireframes & Design System",2026-10-13,2026-10-16,4,Design,"@amarasylviyuliana / @radenelsa7-bot",Open
+"[Week 2] Repo Structure & CI/CD Setup",2026-10-17,2026-10-20,4,Engineering,"@RifqyWildan / @radenelsa7-bot",Open
+"[Week 2] API & Data Model Design",2026-10-21,2026-10-25,5,Backend,"@RifqyWildan / @radenelsa7-bot",Open
+"[Week 3] Backend — Core Implementation (Iterasi 1)",2026-10-26,2026-11-02,8,Backend,"@RifqyWildan / @radenelsa7-bot",Open
+"[Week 3] Frontend — Core Implementation (Iterasi 1)",2026-10-26,2026-11-02,8,Frontend,"@amarasylviyuliana / @radenelsa7-bot",Open
+"[Week 3] Integrations — VA Engine, Storage & Analytics",2026-11-03,2026-11-09,7,Integrations,"@RifqyWildan / @radenelsa7-bot",Open
+"[Phase 4] End-to-End Testing & QA",2026-11-10,2026-11-15,6,QA,"@NabilahAsanaAlecia / @radenelsa7-bot",Open
+"[Phase 4] UAT & Stakeholder Demo",2026-11-16,2026-11-19,4,UAT,"@Adhiryansyah20 / @radenelsa7-bot",Open
+"[Phase 5] Deployment — Staging to Production",2026-11-20,2026-11-25,6,Deployment,"@RifqyWildan / @radenelsa7-bot",Open
+"[Final] Post-release Review & Retrospective",2026-11-26,2026-11-30,5,Review,"@radenelsa7-bot",Open
