@@ -110,6 +110,8 @@ def send_message(
     mm = Message(session_id=s.id, role="mentor", content=reply, kind=kind)
     db.add_all([um, mm])
     db.commit()
+    from ..services.analytics import record_event
+    record_event(db, event_type="message_send", user_id=user.id, reading_point_id=s.reading_point_id, session_id=s.id, meta={"kind": kind})
     return {
         "user_message": MessageOut.model_validate(um),
         "mentor_message": MessageOut.model_validate(mm),

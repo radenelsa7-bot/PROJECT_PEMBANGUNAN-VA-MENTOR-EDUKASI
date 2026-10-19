@@ -36,6 +36,8 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(401, {"code": "BAD_CREDENTIALS", "message": "Email atau password salah."})
+    from ..services.analytics import record_event
+    record_event(db, event_type="login", user_id=user.id, meta={"email": user.email})
     return _token_out(user)
 
 

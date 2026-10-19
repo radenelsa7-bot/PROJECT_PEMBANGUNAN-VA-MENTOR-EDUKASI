@@ -37,5 +37,9 @@ class Settings:
         default_factory=lambda: _list("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
     )
 
+    # Penyimpanan berkas (Issue #10). Default lokal filesystem; siap diganti S3.
+    storage_backend: str = os.getenv("STORAGE_BACKEND", "local")
+    storage_root: str = os.getenv("STORAGE_ROOT", "storage")
+
 
 settings = Settings()

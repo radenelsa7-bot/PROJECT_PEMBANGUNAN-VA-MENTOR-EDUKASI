@@ -143,6 +143,8 @@ def submit_answer(
         next_point_id = L.unlock_next(db, user.id, ctx.rp, ctx.curriculum.id)
 
     db.commit()
+    from ..services.analytics import record_event
+    record_event(db, event_type="evaluation_submit", user_id=user.id, reading_point_id=attempt.reading_point_id, meta={"score": score, "passed": attempt.passed})
     return {
         "id": attempt.id,
         "passed": attempt.passed,

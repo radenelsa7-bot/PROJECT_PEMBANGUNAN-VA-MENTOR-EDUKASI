@@ -12,7 +12,7 @@ from .config import settings
 from .core import learning as L
 from .database import Base, SessionLocal, engine
 from .models import Curriculum
-from .routers import admin, auth, curricula, evaluation, learning, mentoring, progress
+from .routers import admin, analytics, auth, curricula, evaluation, learning, mentoring, progress
 
 DESCRIPTION = """
 **VAME** - Virtual Asisten Mentor Edukasi. Backend REST API (FastAPI) dengan state machine status belajar,
@@ -39,7 +39,7 @@ app.add_middleware(
     CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
 )
 
-for r in (auth, curricula, learning, mentoring, evaluation, progress, admin):
+for r in (auth, curricula, learning, mentoring, evaluation, progress, admin, analytics):
     app.include_router(r.router, prefix=settings.api_prefix)
 
 

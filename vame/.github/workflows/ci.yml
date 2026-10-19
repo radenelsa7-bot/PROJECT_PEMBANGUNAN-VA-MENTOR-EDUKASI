@@ -40,3 +40,33 @@ jobs:
         run: npm install
       - name: Build
         run: npm run build
+
+  smoke-test:
+    name: Smoke Test (docker compose)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & start stack
+        run: docker compose up -d --build
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs backend
+          exit 1
+      - name: Login smoke (mock AI, demo user)
+        run: |
+          curl -fsS -X POST http://localhost:8000/api/v1/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"budi@vame.id","password":"belajar123"}' | grep -q access_token
+      - name: Frontend served
+        run: curl -fsS http://localhost:5173 | grep -qi html
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Teardown
+        if: always()
+        run: docker compose down -v

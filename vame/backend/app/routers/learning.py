@@ -32,6 +32,8 @@ def enroll(body: EnrollmentIn, db: Session = Depends(get_db), user: User = Depen
         db.flush()
     L.ensure_progress(db, user.id, c.id)
     db.commit()
+    from ..services.analytics import record_event
+    record_event(db, event_type="enroll", user_id=user.id, meta={"curriculum_id": c.id, "curriculum_code": c.code})
     return {"enrolled": True, "curriculum_id": c.id}
 
 

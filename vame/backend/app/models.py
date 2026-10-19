@@ -277,3 +277,16 @@ class StudyActivity(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     day: Mapped[date] = mapped_column(Date)
     seconds: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AnalyticsEvent(Base):
+    """Event alur inti untuk analytics (Issue #10): login, enroll, message_send, evaluation_submit."""
+
+    __tablename__ = "analytics_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(40), index=True)  # login | enroll | message_send | evaluation_submit
+    reading_point_id: Mapped[int | None] = mapped_column(ForeignKey("reading_points.id"), nullable=True)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("sessions.id"), nullable=True)
+    meta_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
