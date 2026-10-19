@@ -1,0 +1,444 @@
+openapi: 3.0.3
+info:
+  title: VAME API
+  version: 1.0.0
+  description: |
+    VAME - Virtual Asisten Mentor Edukasi. Backend REST API (FastAPI) dengan state machine status belajar,
+    mentor AI yang dibatasi materi kurikulum (guardrail anti-halusinasi), evaluasi pemahaman, dan monitoring admin.
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Lokal development
+tags:
+  - name: 1. Auth
+    description: Registrasi, login, token
+  - name: 2. Kurikulum
+    description: Kurikulum, modul, poin bacaan
+  - name: 3. Belajar
+    description: Enrollment, progress heartbeat, state machine
+  - name: 4. Mentoring
+    description: Chat mentor AI, starter chips, guardrail
+  - name: 5. Evaluasi
+    description: Soal, jawaban, skor, kelulusan
+  - name: 6. Progress
+    description: Heartbeat, statistik belajar
+  - name: 7. Admin
+    description: Manajemen pengguna, kurikulum, import/export
+paths:
+  /auth/register:
+    post:
+      tags: [1. Auth]
+      summary: Registrasi Learner (FR-01)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterIn'
+      responses:
+        '201':
+          description: Berhasil registrasi, mengembalikan access_token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenOut'
+        '409':
+          description: Email sudah terdaftar
+
+  /auth/login:
+    post:
+      tags: [1. Auth]
+      summary: Login & token akses (FR-02)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginIn'
+      responses:
+        '200':
+          description: Berhasil login, mengembalikan access_token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenOut'
+        '401':
+          description: Email atau password salah
+
+  /curricula/{cid}:
+    get:
+      tags: [2. Kurikulum]
+      summary: Detail kurikulum dengan modul & poin bacaan
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detail kurikulum
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumDetail'
+
+  /curricula:
+    get:
+      tags: [2. Kurikulum]
+      summary: Daftar semua kurikulum
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: List kurikulum
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CurriculumOut'
+    post:
+      tags: [2. Kurikulum, 7. Admin]
+      summary: Buat kurikulum baru (admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurriculumIn'
+      responses:
+        '201':
+          description: Kurikulum dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumOut'
+        '403':
+          description: Bukan admin
+
+  /learning/enroll/{cid}:
+    post:
+      tags: [3. Belajar]
+      summary: Enroll ke kurikulum
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Berhasil enroll
+        '409':
+          description: Sudah terdaftar
+
+  /learning/progress/heartbeat:
+    post:
+      tags: [3. Belajar, 6. Progress]
+      summary: Heartbeat progres belajar
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeartbeatIn'
+      responses:
+        '200':
+          description: Progress diperbarui
+
+  /reading-points/{rp_id}:
+    get:
+      tags: [2. Kurikulum]
+      summary: Detail poin bacaan
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: rp_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detail poin bacaan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingPointOut'
+
+  /reading-points/{rp_id}/sessions:
+    post:
+      tags: [4. Mentoring]
+      summary: Buka sesi mentoring untuk poin bacaan
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: rp_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Sesi dibuat atau sudah ada
+        '409':
+          description: Sesi sudah aktif
+
+  /mentoring/{session_id}:
+    post:
+      tags: [4. Mentoring]
+      summary: Kirim pesan ke mentor AI
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatIn'
+      responses:
+        '200':
+          description: Respons mentor AI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatOut'
+
+  /reading-points/{rp_id}/evaluation:
+    get:
+      tags: [5. Evaluasi]
+      summary: Ambil soal evaluasi untuk poin bacaan
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: rp_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daftar soal evaluasi
+
+  /evaluations/{eval_id}/answer:
+    post:
+      tags: [5. Evaluasi]
+      summary: Kirim jawaban evaluasi & dapatkan skor
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: eval_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerIn'
+      responses:
+        '200':
+          description: Skor & feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerOut'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Tempel access_token dari /auth/login
+
+  schemas:
+    TokenOut:
+      type: object
+      properties:
+        access_token:
+          type: string
+        expires_in:
+          type: integer
+        user:
+          $ref: '#/components/schemas/UserOut'
+
+    UserOut:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+
+    RegisterIn:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+          format: password
+
+    LoginIn:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+          format: password
+
+    CurriculumOut:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        title:
+          type: string
+        short_name:
+          type: string
+        description:
+          type: string
+        level:
+          type: string
+        topic_label:
+          type: string
+        est_hours:
+          type: integer
+        mentor_name:
+          type: string
+        is_active:
+          type: boolean
+
+    CurriculumDetail:
+      allOf:
+        - $ref: '#/components/schemas/CurriculumOut'
+        - type: object
+          properties:
+            modules:
+              type: array
+              items:
+                $ref: '#/components/schemas/ModuleOut'
+
+    ModuleOut:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        label:
+          type: string
+        order:
+          type: integer
+        reading_points:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadingPointOut'
+
+    ReadingPointOut:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        objective:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        references:
+          type: string
+        order:
+          type: integer
+        is_mandatory:
+          type: boolean
+
+    CurriculumIn:
+      type: object
+      required: [code, title]
+      properties:
+        code:
+          type: string
+        title:
+          type: string
+        short_name:
+          type: string
+        description:
+          type: string
+        level:
+          type: string
+        topic_label:
+          type: string
+        est_hours:
+          type: integer
+        mentor_name:
+          type: string
+        is_active:
+          type: boolean
+
+    ChatIn:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    ChatOut:
+      type: object
+      properties:
+        reply:
+          type: string
+        kind:
+          type: string
+          description: normal | out_of_scope | blocked
+        flagged:
+          type: boolean
+
+    HeartbeatIn:
+      type: object
+      required: [reading_point_id, status]
+      properties:
+        reading_point_id:
+          type: integer
+        status:
+          type: string
+          description: LOCKED | ACTIVE | COMPLETED
+
+    AnswerIn:
+      type: object
+      required: [answer]
+      properties:
+        answer:
+          type: string
+
+    AnswerOut:
+      type: object
+      properties:
+        score:
+          type: number
+        passed:
+          type: boolean
+        feedback:
+          type: string
