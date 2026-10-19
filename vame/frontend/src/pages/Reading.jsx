@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { get, post } from "../api.js";
-import { Markdown, Notice, StatusBadge, pointRoute, useAsync } from "../components/common.jsx";
+import { Markdown, Notice, StatusBadge, FlowSteps, pointRoute, useAsync } from "../components/common.jsx";
 
 // Bacaan wajib (BR-01). GET ini membuka poin: AVAILABLE -> READING, NEEDS_REVIEW -> READING.
 export default function Reading() {
@@ -42,6 +42,7 @@ export default function Reading() {
         </div>
         <Link className="btn" to={`/curricula/${p.curriculum.id}`}>← Peta belajar</Link>
       </div>
+      <FlowSteps status={p.status} compact />
 
       <article className="card reading">
         <div className="row" style={{ justifyContent: "space-between" }}>

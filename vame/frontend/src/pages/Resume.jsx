@@ -1,8 +1,7 @@
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
 import { get } from "../api.js";
-import { Notice, STATUS_META, StatusBadge, pointRoute, useAsync } from "../components/common.jsx";
+import { BackButton, Notice, STATUS_META, StatusBadge, pointRoute, useAsync } from "../components/common.jsx";
 
 // "Mentoring Session" / "Ask AI Mentor": pilih poin yang sudah melewati tahap bacaan.
 export default function Resume() {
@@ -20,8 +19,13 @@ export default function Resume() {
 
   return (
     <>
-      <h1 className="page-title">Mentoring Session</h1>
-      <p className="page-sub">Berdiskusi dengan mentor AI. Jawabannya dibatasi pada materi kurikulum yang sudah kamu baca.</p>
+      <div className="crumbs">
+        <div style={{ flex: 1 }}>
+          <h1 className="page-title">Mentoring Session</h1>
+          <p className="page-sub">Berdiskusi dengan mentor AI. Jawabannya dibatasi pada materi kurikulum yang sudah kamu baca.</p>
+        </div>
+        <BackButton to="/dashboard" label="Kembali" />
+      </div>
 
       {cur && (
         <section className="card panel">

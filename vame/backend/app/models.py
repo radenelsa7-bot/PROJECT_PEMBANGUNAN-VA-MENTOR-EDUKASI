@@ -62,13 +62,17 @@ class ReadingPoint(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     module_id: Mapped[int] = mapped_column(ForeignKey("modules.id"))
     title: Mapped[str] = mapped_column(String(200))
-    content: Mapped[str] = mapped_column(Text)  # isi_materi
-    objective: Mapped[str] = mapped_column(Text)  # tujuan
+    content: Mapped[str] = mapped_column(Text)  # isi_materi (konten poin bacaan)
+    objective: Mapped[str] = mapped_column(Text, default="")  # tujuan pembelajaran
     keywords_json: Mapped[str] = mapped_column(Text, default="[]")
-    references: Mapped[str] = mapped_column(Text, default="")
+    references: Mapped[str] = mapped_column(Text, default="")  # sumber_referensi (SRS)
     order: Mapped[int] = mapped_column(Integer)
+    is_mandatory: Mapped[bool] = mapped_column(Boolean, default=True)  # sesuai ERD
 
     module: Mapped[Module] = relationship(back_populates="reading_points")
+    questions: Mapped[list["Question"]] = relationship(
+        back_populates="reading_point", cascade="all, delete-orphan"
+    )
 
     @property
     def keywords(self) -> list[str]:
@@ -85,7 +89,10 @@ class Enrollment(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     curriculum_id: Mapped[int] = mapped_column(ForeignKey("curricula.id"))
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | completed | dropped
+    progress_persen: Mapped[float] = mapped_column(Float, default=0.0)  # sesuai ERD
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # tgl_selesai (ERD)
 
 
 class LearningProgress(Base):
@@ -115,11 +122,15 @@ class StateTransitionLog(Base):
 
 
 class ChatSession(Base):
+    """Session mentoring/evaluasi. FK ke enrollment (bukan langsung user) sesuai ERD."""
     __tablename__ = "sessions"
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    enrollment_id: Mapped[int] = mapped_column(ForeignKey("enrollments.id"), index=True)
     reading_point_id: Mapped[int] = mapped_column(ForeignKey("reading_points.id"))
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | ended
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    evaluation_rel: Mapped["Evaluation | None"] = relationship(back_populates="session_rel")
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="session", order_by="Message.id", cascade="all, delete-orphan"
@@ -153,6 +164,69 @@ class EvaluationAttempt(Base):
     status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | graded
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     graded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+
+
+class Question(Base):
+    """Soal evaluasi untuk setiap poin bacaan (FR-11)."""
+    
+    __tablename__ = "questions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reading_point_id: Mapped[int] = mapped_column(ForeignKey("reading_points.id"))
+    question_text: Mapped[str] = mapped_column(Text)
+    answer_key: Mapped[str] = mapped_column(Text)
+    question_type: Mapped[str] = mapped_column(String(20), default="essay")  # essay | multiple_choice
+    weight: Mapped[int] = mapped_column(Integer, default=1)
+    difficulty: Mapped[str] = mapped_column(String(20), default="medium")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    
+    reading_point: Mapped[ReadingPoint] = relationship(back_populates="questions")
+
+
+class Evaluation(Base):
+    """Sesi evaluasi lengkap (ERD table evaluation)."""
+    
+    __tablename__ = "evaluations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    is_passed: Mapped[bool] = mapped_column(Boolean, default=False)
+    feedback_ai: Mapped[str] = mapped_column(Text, default="")
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    
+    session_rel: Mapped[ChatSession] = relationship(back_populates="evaluation_rel")
+    answers: Mapped[list["Answer"]] = relationship(back_populates="evaluation", cascade="all, delete-orphan")
+
+
+class Answer(Base):
+    """Jawaban evaluasi per soal (ERD table answer)."""
+    
+    __tablename__ = "answers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    evaluation_id: Mapped[int] = mapped_column(ForeignKey("evaluations.id"))
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"))
+    student_answer: Mapped[str] = mapped_column(Text)
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    feedback: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    
+    evaluation: Mapped[Evaluation] = relationship(back_populates="answers")
+    question: Mapped[Question] = relationship()
+
+
+class AIProviderConfig(Base):
+    """Konfigurasi provider & model AI (ERD: ai_model_config)."""
+    __tablename__ = "ai_model_config"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider: Mapped[str] = mapped_column(String(30))  # openai | anthropic | ollama
+    model_name: Mapped[str] = mapped_column(String(80))
+    api_key_hint: Mapped[str] = mapped_column(String(100), default="")
+    base_url: Mapped[str] = mapped_column(String(255), default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    temperature: Mapped[float] = mapped_column(Float, default=0.7)
+    max_tokens: Mapped[int] = mapped_column(Integer, default=2048)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class PromptConfig(Base):

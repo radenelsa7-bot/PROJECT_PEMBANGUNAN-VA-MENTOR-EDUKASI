@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, post } from "../api.js";
-import { Notice, StatusBadge, useAsync } from "../components/common.jsx";
+import { Notice, StatusBadge, FlowSteps, useAsync } from "../components/common.jsx";
 
-const STARTERS = ["Jelaskan konsep ini dengan analogi sederhana", "Beri contoh kode singkat", "Apa kesalahan yang sering terjadi?"];
+const startersFor = (rp) => {
+  const k = (rp?.keywords || []).filter(Boolean);
+  const a = k[0] || rp?.title || "materi ini";
+  const b = k[1] || a;
+  return [
+    `Jelaskan "${a}" dengan analogi sederhana`,
+    `Beri contoh kode singkat untuk "${b}"`,
+    `Apa kesalahan yang sering terjadi saat memakai "${a}"?`,
+  ];
+};
 const KIND_LABEL = { out_of_scope: "Di luar lingkup kurikulum", blocked: "Pesan diblokir guardrail" };
 
 export default function Mentoring() {
@@ -88,21 +97,39 @@ export default function Mentoring() {
   };
 
   const ready = interactions >= s.min_interactions;
+  const progress = Math.min(100, (interactions / s.min_interactions) * 100);
   return (
     <>
       <div className="crumbs">
         <div className="crumb-trail"><Link to={`/curricula/${rp.curriculum_id}`}>Peta belajar</Link> › {rp.module_title} › <b>Mentoring</b></div>
+        <Link className="btn" to={`/curricula/${rp.curriculum_id}`}>← Kembali</Link>
       </div>
+      <FlowSteps status={rp.status} compact />
       <div className="chat-wrap">
         <aside className="card side-card stack" style={{ gap: 14 }}>
           <div><StatusBadge status={rp.status} /></div>
           <h3 style={{ fontSize: 19 }}>{rp.title}</h3>
           <p style={{ color: "var(--muted)", fontSize: 14 }}>{rp.objective}</p>
           <div className="kw" style={{ margin: 0 }}>{rp.keywords.map((k) => <span key={k}>{k}</span>)}</div>
-          <div className="notice info">
-            Pertanyaan ke mentor: <b>{interactions}</b> / {s.min_interactions} (minimal untuk membuka evaluasi)
+          
+          <div className="progress-card">
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Progres Diskusi</span>
+              <span style={{ fontSize: 14, color: ready ? "var(--green)" : "var(--primary)", fontWeight: 700 }}>
+                {interactions} / {s.min_interactions}
+              </span>
+            </div>
+            <div className="bar" style={{ height: 10, marginBottom: 6 }}>
+              <div style={{ width: `${progress}%`, background: ready ? "var(--green)" : "var(--primary)" }} />
+            </div>
+            <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>
+              {ready 
+                ? "✅ Kamu sudah cukup berdiskusi. Evaluasi sudah bisa dimulai!" 
+                : `Tanya ${s.min_interactions - interactions} pertanyaan lagi untuk unlock evaluasi`}
+            </p>
           </div>
-          <button className="btn primary" disabled={!ready || evalBusy || rp.status === "PASSED"} onClick={goEval}>
+
+          <button className="btn primary" disabled={!ready || evalBusy || rp.status === "PASSED"} onClick={goEval} title={!ready ? `Tanya ${s.min_interactions - interactions} pertanyaan lagi` : ""}>
             {rp.status === "ASSESSMENT" ? "Lanjutkan evaluasi →" : "📝 Minta evaluasi"}
           </button>
           <Link className="btn" to={`/reading/${rp.id}`} style={{ textAlign: "center" }}>📖 Baca ulang materi</Link>
@@ -131,7 +158,7 @@ export default function Mentoring() {
           {err && <div style={{ padding: "0 14px 10px" }}><Notice kind="err">{err}</Notice></div>}
           {msgs.length === 0 && (
             <div className="row" style={{ padding: "0 14px 10px" }}>
-              {STARTERS.map((q) => <button key={q} className="btn sm" onClick={() => send(q)}>{q}</button>)}
+              {startersFor(rp).map((q) => <button key={q} className="btn sm" onClick={() => send(q)}>{q}</button>)}
             </div>
           )}
           <form className="chat-input" onSubmit={(e) => { e.preventDefault(); send(); }}>

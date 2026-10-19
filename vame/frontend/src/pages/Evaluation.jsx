@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { get, post } from "../api.js";
-import { Notice, useAsync } from "../components/common.jsx";
+import { Notice, StatusBadge, FlowSteps, useAsync } from "../components/common.jsx";
 
 export default function Evaluation() {
   const { rid } = useParams();
@@ -42,9 +42,17 @@ export default function Evaluation() {
     <>
       <div className="crumbs">
         <div className="crumb-trail"><Link to="/curricula">Peta belajar</Link> › <b>Evaluasi pemahaman</b></div>
+        <button className="btn" onClick={() => nav(`/mentoring/${rid}`)}>← Kembali ke diskusi</button>
       </div>
+      <FlowSteps status="ASSESSMENT" compact />
       <div className="card panel" style={{ maxWidth: 900 }}>
-        <span className="tag">📝 Evaluasi</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span className="tag">📝 Evaluasi</span>
+          <StatusBadge status="ASSESSMENT" />
+        </div>
+        <div className="notice info" style={{ marginBottom: 16 }}>
+          <b>Langkah terakhir!</b> Jawab pertanyaan di bawah ini dengan kata-katamu sendiri untuk menyelesaikan poin ini. Minimal skor 70 untuk lulus.
+        </div>
         <h2 style={{ margin: "14px 0" }}>Jawab dengan kata-katamu sendiri</h2>
         <div className="question-box">{ev.question}</div>
 

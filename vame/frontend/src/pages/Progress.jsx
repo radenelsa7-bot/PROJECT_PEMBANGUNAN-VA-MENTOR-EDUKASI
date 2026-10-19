@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api, get } from "../api.js";
-import { Notice, useAsync } from "../components/common.jsx";
+import { BackButton, Notice, useAsync } from "../components/common.jsx";
 
 export default function Progress() {
   const { data, error } = useAsync(() => get("/progress"), []);
@@ -23,12 +24,15 @@ export default function Progress() {
 
   return (
     <>
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
+      <div className="crumbs">
+        <div style={{ flex: 1 }}>
           <h1 className="page-title">Progres Belajar</h1>
           <p className="page-sub">Ringkasan penyelesaian, skor, dan rekomendasi langkah berikutnya.</p>
         </div>
-        <button className="btn" onClick={exportCsv}>⬇ Ekspor CSV</button>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button className="btn" onClick={exportCsv}>⬇ Ekspor CSV</button>
+          <BackButton to="/dashboard" label="Kembali" />
+        </div>
       </div>
       {err && <Notice kind="err">{err}</Notice>}
 

@@ -37,7 +37,8 @@ def _seed_demo_progress(db: Session, budi: User, py) -> None:
     """Progres demo mirip tampilan UI: modul 1 lulus, modul 2 sedang berjalan."""
     if db.scalar(select(Enrollment).where(Enrollment.user_id == budi.id)):
         return
-    db.add(Enrollment(user_id=budi.id, curriculum_id=py.id, started_at=utcnow() - timedelta(days=13)))
+    enrollment = Enrollment(user_id=budi.id, curriculum_id=py.id, started_at=utcnow() - timedelta(days=13))
+    db.add(enrollment)
     db.flush()
     lps = L.ensure_progress(db, budi.id, py.id)
     pts = L.ordered_points(db, py.id)
@@ -64,7 +65,7 @@ def _seed_demo_progress(db: Session, budi: User, py) -> None:
         (pts[3], ("Kapan hasil 'and' bernilai True?", "Berdasarkan materi: and bernilai True jika kedua sisi True.")),
         (pts[4], ("Kapan memakai elif?", "Berdasarkan materi: elif memeriksa kondisi lain bila if sebelumnya False.")),
     ):
-        s = ChatSession(user_id=budi.id, reading_point_id=pt.id)
+        s = ChatSession(enrollment_id=enrollment.id, reading_point_id=pt.id)
         s.messages = [Message(role="user", content=qa[0]), Message(role="mentor", content=qa[1])]
         db.add(s)
     today = date.today()

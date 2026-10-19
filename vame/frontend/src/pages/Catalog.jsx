@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
 import { get, post } from "../api.js";
-import { Notice, useAsync } from "../components/common.jsx";
+import { BackButton, Notice, useAsync } from "../components/common.jsx";
 
 export default function Catalog() {
   const { refreshEnrollments, selectCurriculum } = useAuth();
@@ -29,8 +29,13 @@ export default function Catalog() {
 
   return (
     <>
-      <h1 className="page-title">Pilih Kurikulum</h1>
-      <p className="page-sub">Setiap kurikulum terdiri dari modul dan poin bacaan wajib yang dibuka berurutan.</p>
+      <div className="crumbs">
+        <div style={{ flex: 1 }}>
+          <h1 className="page-title">Pilih Kurikulum</h1>
+          <p className="page-sub">Setiap kurikulum terdiri dari modul dan poin bacaan wajib yang dibuka berurutan.</p>
+        </div>
+        <BackButton to="/dashboard" label="Kembali" />
+      </div>
       {(error || err) && <Notice kind="err">{(error || { message: err }).message}</Notice>}
       <div className="cols-2" style={{ marginTop: 16 }}>
         {(data || []).map((c) => (

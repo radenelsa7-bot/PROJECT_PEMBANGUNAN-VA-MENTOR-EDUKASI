@@ -1,11 +1,13 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "../auth.jsx";
 import { get } from "../api.js";
-import { Notice, StatusBadge, pointRoute, useAsync } from "../components/common.jsx";
+import { FlowSteps, FlowGuide, Notice, StatusBadge, pointRoute, useAsync } from "../components/common.jsx";
 
 export default function Dashboard() {
   const { user, selectedId, enrollLoaded } = useAuth();
   const nav = useNavigate();
+  const [showGuide, setShowGuide] = useState(false);
   const path = useAsync(() => (selectedId ? get(`/learning-path/${selectedId}`) : Promise.resolve(null)), [selectedId]);
   const prog = useAsync(() => get("/progress"), []);
 
@@ -27,6 +29,14 @@ export default function Dashboard() {
     <>
       <h1 className="page-title">Halo, {user.name.split(" ")[0]} 👋</h1>
       <p className="page-sub">{d.curriculum.title} · hari ke-{d.activity.day_number}</p>
+
+      <div className="flow-head">
+        {cur && <FlowSteps status={cur.status} />}
+        <button className="btn sm" onClick={() => setShowGuide((v) => !v)}>
+          {showGuide ? "Sembunyikan panduan" : "🧭 Cara kerja alur & AI"}
+        </button>
+      </div>
+      {showGuide && <FlowGuide onClose={() => setShowGuide(false)} />}
 
       <div className="kpis">
         <div className="card kpi"><small>Progres kurikulum</small><strong>{d.summary.percent}%</strong></div>

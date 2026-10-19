@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
 import { get } from "../api.js";
-import { Notice, STATUS_META, STATUS_ORDER, StatusBadge, pointRoute, useAsync } from "../components/common.jsx";
+import { BackButton, Notice, STATUS_META, STATUS_ORDER, StatusBadge, pointRoute, useAsync } from "../components/common.jsx";
 
 const pad = (n) => String(n).padStart(2, "0");
 const fmtScore = (n) => (Number.isInteger(n) ? n.toFixed(0) : Number(n).toFixed(1));
@@ -199,6 +199,7 @@ export default function Curricula() {
           <Link to="/catalog">Kurikulum</Link> › {c.short_name} › <b>Peta Alur Belajar</b>
         </div>
         <div className="switcher">
+          <BackButton to="/catalog" label="Kembali" />
           <button className="switch-btn" onClick={() => setMenu(!menu)}>
             ⇄ Ganti Kurikulum: <b>{c.short_name}</b> ⌄
           </button>

@@ -124,15 +124,17 @@ def apply_transition(db: Session, lp: LearningProgress, trigger: Trigger, note: 
     return new
 
 
-def unlock_next(db: Session, user_id: int, rp: ReadingPoint, curriculum_id: int) -> None:
-    """FR-14: buka poin berikutnya hanya setelah poin ini PASSED."""
+def unlock_next(db: Session, user_id: int, rp: ReadingPoint, curriculum_id: int) -> int | None:
+    """FR-14: buka poin berikutnya hanya setelah poin ini PASSED. Kembalikan id poin berikutnya."""
     pts = ordered_points(db, curriculum_id)
     idx = next((i for i, p in enumerate(pts) if p.id == rp.id), None)
     if idx is None or idx + 1 >= len(pts):
-        return
-    lp = ensure_progress(db, user_id, curriculum_id)[pts[idx + 1].id]
+        return None
+    nxt = pts[idx + 1]
+    lp = ensure_progress(db, user_id, curriculum_id)[nxt.id]
     if lp.status == Status.LOCKED.value:
         apply_transition(db, lp, Trigger.UNLOCK, f"poin sebelumnya (#{rp.id}) PASSED")
+    return nxt.id
 
 
 class PointCtx:
@@ -176,8 +178,9 @@ def count_learner_interactions(db: Session, user_id: int, rp_id: int) -> int:
         db.scalar(
             select(func.count(Message.id))
             .join(ChatSession, Message.session_id == ChatSession.id)
+            .join(Enrollment, ChatSession.enrollment_id == Enrollment.id)
             .where(
-                ChatSession.user_id == user_id,
+                Enrollment.user_id == user_id,
                 ChatSession.reading_point_id == rp_id,
                 Message.role == "user",
                 Message.kind == "normal",
@@ -270,7 +273,8 @@ def activity_today(db: Session, user_id: int, curriculum_id: int) -> dict:
         db.scalar(
             select(func.count(func.distinct(Message.session_id)))
             .join(ChatSession, Message.session_id == ChatSession.id)
-            .where(ChatSession.user_id == user_id, Message.role == "user", Message.created_at >= day_start, Message.created_at < day_end)
+            .join(Enrollment, ChatSession.enrollment_id == Enrollment.id)
+            .where(Enrollment.user_id == user_id, Message.role == "user", Message.created_at >= day_start, Message.created_at < day_end)
         )
         or 0
     )

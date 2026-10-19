@@ -17,13 +17,6 @@ from ..schemas import FlagIn, MessageIn, MessageOut
 router = APIRouter(tags=["4. Mentoring"])
 
 
-def _own_session(db: Session, user: User, sid: int) -> ChatSession:
-    s = db.get(ChatSession, sid)
-    if not s or s.user_id != user.id:
-        raise HTTPException(404, {"code": "NOT_FOUND", "message": "Sesi tidak ditemukan."})
-    return s
-
-
 def _session_payload(ctx: L.PointCtx, s: ChatSession) -> dict:
     rp = ctx.rp
     return {
@@ -40,6 +33,7 @@ def _session_payload(ctx: L.PointCtx, s: ChatSession) -> dict:
 
 @router.post("/reading-points/{rid}/sessions", summary="Mulai/lanjutkan sesi mentoring pada poin bacaan")
 def open_session(rid: int, db: Session = Depends(get_db), user: User = Depends(require_learner)):
+    from ..models import Enrollment
     ctx = L.get_point_ctx(db, user.id, rid)
     if not sm.can_open_mentoring(ctx.lp.status):  # BR-01, FR-12
         raise HTTPException(
@@ -50,9 +44,10 @@ def open_session(rid: int, db: Session = Depends(get_db), user: User = Depends(r
                 "current_status": ctx.lp.status,
             },
         )
-    s = db.scalar(select(ChatSession).where(ChatSession.user_id == user.id, ChatSession.reading_point_id == rid).order_by(ChatSession.id.desc()))
+    enr = db.scalar(select(Enrollment).where(Enrollment.user_id == user.id, Enrollment.curriculum_id == ctx.curriculum.id))
+    s = db.scalar(select(ChatSession).where(ChatSession.enrollment_id == enr.id, ChatSession.reading_point_id == rid).order_by(ChatSession.id.desc()))
     if not s:
-        s = ChatSession(user_id=user.id, reading_point_id=rid)
+        s = ChatSession(enrollment_id=enr.id, reading_point_id=rid)
         db.add(s)
         db.commit()
     payload = _session_payload(ctx, s)
@@ -62,7 +57,13 @@ def open_session(rid: int, db: Session = Depends(get_db), user: User = Depends(r
 
 @router.get("/sessions/{sid}", summary="Riwayat percakapan sesi (FR-20)")
 def get_session(sid: int, db: Session = Depends(get_db), user: User = Depends(require_learner)):
-    s = _own_session(db, user, sid)
+    from ..models import Enrollment
+    s = db.get(ChatSession, sid)
+    if not s:
+        raise HTTPException(404, {"code": "NOT_FOUND", "message": "Sesi tidak ditemukan."})
+    enr = db.get(Enrollment, s.enrollment_id)
+    if not enr or enr.user_id != user.id:
+        raise HTTPException(404, {"code": "NOT_FOUND", "message": "Sesi tidak ditemukan."})
     ctx = L.get_point_ctx(db, user.id, s.reading_point_id)
     payload = _session_payload(ctx, s)
     payload["interactions"] = L.count_learner_interactions(db, user.id, s.reading_point_id)
@@ -77,7 +78,13 @@ def send_message(
     user: User = Depends(rate_limit_ai),
     ai: AIClient = Depends(get_ai_client),
 ):
-    s = _own_session(db, user, sid)
+    from ..models import Enrollment
+    s = db.get(ChatSession, sid)
+    if not s:
+        raise HTTPException(404, {"code": "NOT_FOUND", "message": "Sesi tidak ditemukan."})
+    enr = db.get(Enrollment, s.enrollment_id)
+    if not enr or enr.user_id != user.id:
+        raise HTTPException(404, {"code": "NOT_FOUND", "message": "Sesi tidak ditemukan."})
     ctx = L.get_point_ctx(db, user.id, s.reading_point_id)
     if not sm.can_open_mentoring(ctx.lp.status):
         raise HTTPException(409, {"code": "NOT_DISCUSSING", "message": "Sesi mentoring hanya aktif pada tahap diskusi.", "current_status": ctx.lp.status})
@@ -112,9 +119,13 @@ def send_message(
 
 @router.post("/messages/{mid}/flag", summary="Tandai jawaban AI tidak sesuai materi (FR-30)")
 def flag_message(mid: int, body: FlagIn, db: Session = Depends(get_db), user: User = Depends(require_learner)):
+    from ..models import Enrollment
     m = db.get(Message, mid)
     s = db.get(ChatSession, m.session_id) if m else None
-    if not m or not s or s.user_id != user.id or m.role != "mentor":
+    if not m or not s or m.role != "mentor":
+        raise HTTPException(404, {"code": "NOT_FOUND", "message": "Pesan mentor tidak ditemukan."})
+    enr = db.get(Enrollment, s.enrollment_id) if s else None
+    if not enr or enr.user_id != user.id:
         raise HTTPException(404, {"code": "NOT_FOUND", "message": "Pesan mentor tidak ditemukan."})
     m.flagged = True
     m.flag_reason = body.reason.strip()

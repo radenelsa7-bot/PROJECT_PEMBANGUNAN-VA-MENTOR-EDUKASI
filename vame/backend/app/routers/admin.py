@@ -12,7 +12,7 @@ from ..models import (
     AIUsageLog, AppSetting, ChatSession, Enrollment, EvaluationAttempt, LearningProgress, Message,
     PromptConfig, ReadingPoint, StateTransitionLog, User,
 )
-from ..schemas import PromptConfigIn, SettingsIn
+from ..schemas import AIProviderConfigIn, PromptConfigIn, QuestionIn, SettingsIn
 
 router = APIRouter(prefix="/admin", tags=["7. Admin"])
 
@@ -57,7 +57,8 @@ def sessions(
     q = (
         select(ChatSession, User.name, ReadingPoint.title,
                func.count(Message.id), flag_sum)
-        .join(User, ChatSession.user_id == User.id)
+        .join(Enrollment, ChatSession.enrollment_id == Enrollment.id)
+        .join(User, Enrollment.user_id == User.id)
         .join(ReadingPoint, ChatSession.reading_point_id == ReadingPoint.id)
         .join(Message, Message.session_id == ChatSession.id, isouter=True)
         .group_by(ChatSession.id, User.name, ReadingPoint.title)
@@ -77,8 +78,10 @@ def session_detail(sid: int, db: Session = Depends(get_db), _: User = Depends(re
     s = db.get(ChatSession, sid)
     if not s:
         raise HTTPException(404, {"code": "NOT_FOUND", "message": "Sesi tidak ditemukan."})
+    enr = db.get(Enrollment, s.enrollment_id)
+    learner_name = db.get(User, enr.user_id).name if enr else "?"
     return {
-        "id": s.id, "learner": db.get(User, s.user_id).name, "reading_point": db.get(ReadingPoint, s.reading_point_id).title,
+        "id": s.id, "learner": learner_name, "reading_point": db.get(ReadingPoint, s.reading_point_id).title,
         "messages": [
             {"id": m.id, "role": m.role, "content": m.content, "kind": m.kind, "flagged": m.flagged, "flag_reason": m.flag_reason, "created_at": m.created_at}
             for m in s.messages
@@ -170,3 +173,87 @@ def state_logs(invalid_only: bool = False, limit: int = Query(50, le=200), db: S
          "to": r.to_status, "valid": r.valid, "note": r.note, "created_at": r.created_at}
         for r in db.scalars(q)
     ]
+
+
+# ---------- Question Management (Admin) ----------
+@router.post("/reading-points/{rid}/questions", summary="Tambah soal evaluasi (admin)")
+def create_question(rid: int, body: QuestionIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from ..models import Question
+    rp = db.get(ReadingPoint, rid)
+    if not rp:
+        raise HTTPException(404)
+    q = Question(**body.model_dump(), reading_point_id=rid)
+    db.add(q)
+    db.commit()
+    return {"id": q.id, "created": True}
+
+
+@router.get("/questions/{qid}")
+def get_question(qid: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from ..models import Question
+    q = db.get(Question, qid)
+    if not q:
+        raise HTTPException(404)
+    return q
+
+
+@router.patch("/questions/{qid}")
+def update_question(qid: int, body: QuestionIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from ..models import Question
+    q = db.get(Question, qid)
+    if not q:
+        raise HTTPException(404)
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(q, k, v)
+    db.commit()
+    return {"updated": True}
+
+
+@router.delete("/questions/{qid}")
+def delete_question(qid: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from ..models import Question
+    q = db.get(Question, qid)
+    if not q:
+        raise HTTPException(404)
+    db.delete(q)
+    db.commit()
+    return {"deleted": True}
+
+
+# ---------- AI Provider Config (Admin) ----------
+@router.get("/ai-providers")
+def list_providers(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from ..models import AIProviderConfig
+    return db.scalars(select(AIProviderConfig).order_by(AIProviderConfig.id.desc())).all()
+
+
+@router.post("/ai-providers")
+def create_provider(body: AIProviderConfigIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from ..models import AIProviderConfig
+    cfg = AIProviderConfig(**body.model_dump())
+    db.add(cfg)
+    db.commit()
+    return {"id": cfg.id, "created": True}
+
+
+@router.patch("/ai-providers/{pid}")
+def update_provider(pid: int, body: AIProviderConfigIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from ..models import AIProviderConfig
+    cfg = db.get(AIProviderConfig, pid)
+    if not cfg:
+        raise HTTPException(404)
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(cfg, k, v)
+    db.commit()
+    return {"updated": True}
+
+
+@router.delete("/ai-providers/{pid}")
+def delete_provider(pid: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from ..models import AIProviderConfig
+    cfg = db.get(AIProviderConfig, pid)
+    if not cfg:
+        raise HTTPException(404)
+    db.delete(cfg)
+    db.commit()
+    return {"deleted": True}

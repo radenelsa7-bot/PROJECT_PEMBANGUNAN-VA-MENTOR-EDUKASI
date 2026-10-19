@@ -107,6 +107,75 @@ class EnrollmentIn(BaseModel):
     curriculum_id: int
 
 
+# ---------- Question ----------
+class QuestionIn(BaseModel):
+    question_text: str = Field(min_length=1)
+    answer_key: str = Field(min_length=1)
+    question_type: str = Field(default="essay", pattern="^(essay|multiple_choice)$")
+    weight: int = Field(default=1, ge=1, le=10)
+    difficulty: str = Field(default="medium", pattern="^(easy|medium|hard)$")
+
+
+class QuestionOut(ORM):
+    id: int
+    reading_point_id: int
+    question_text: str
+    answer_key: str
+    question_type: str
+    weight: int
+    difficulty: str
+    created_at: datetime
+
+
+# ---------- AI Provider Config ----------
+class AIProviderConfigIn(BaseModel):
+    provider: str = Field(min_length=1, max_length=30)
+    model_name: str = Field(min_length=1, max_length=80)
+    api_key_hint: str = Field(default="", max_length=100)
+    base_url: str = Field(default="", max_length=255)
+    is_active: bool = False
+    temperature: float = Field(default=0.7, ge=0, le=2)
+    max_tokens: int = Field(default=2048, ge=1)
+
+
+class AIProviderConfigOut(ORM):
+    id: int
+    provider: str
+    model_name: str
+    api_key_hint: str
+    base_url: str
+    is_active: bool
+    temperature: float
+    max_tokens: int
+    created_at: datetime
+
+
+# ---------- Evaluation & Assessment ----------
+class AnswerIn(BaseModel):
+    question_text: str = Field(min_length=1)
+    answer_text: str = Field(min_length=1)
+
+
+class EvaluationAttemptOut(ORM):
+    id: int
+    user_id: int
+    reading_point_id: int
+    status: str
+    score: float | None = None
+    feedback: str | None = None
+    passed: bool | None = None
+    created_at: datetime
+    graded_at: datetime | None = None
+
+
+class EvaluationResultOut(BaseModel):
+    attempt_id: int
+    status: str
+    score: float | None = None
+    passed: bool
+    feedback: str
+
+
 # ---------- Mentoring ----------
 class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
@@ -133,21 +202,23 @@ class FlagIn(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
-# ---------- Evaluasi ----------
-class AnswerIn(BaseModel):
-    answer: str = Field(min_length=1, max_length=4000)
-
-
-class EvaluationOut(ORM):
+# ---------- Evaluasi (model lama Evaluation+Answer) ----------
+class AnswerLegacyOut(ORM):
     id: int
-    reading_point_id: int
-    question: str
-    answer: str | None
-    score: float | None
-    feedback: str | None
-    passed: bool | None
-    status: str
-    created_at: datetime
+    evaluation_id: int
+    question_id: int
+    student_answer: str
+    score: int
+    feedback: str
+
+
+class EvaluationLegacyOut(ORM):
+    id: int
+    session_id: int
+    score: float
+    is_passed: bool
+    feedback_ai: str
+    evaluated_at: datetime
 
 
 # Keluaran terstruktur dari AI (FR-29)
