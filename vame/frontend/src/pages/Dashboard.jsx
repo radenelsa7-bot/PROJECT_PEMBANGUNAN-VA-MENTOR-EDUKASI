@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, Navigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../auth.jsx";
 import { get } from "../api.js";
@@ -10,6 +10,9 @@ export default function Dashboard() {
   const [showGuide, setShowGuide] = useState(false);
   const path = useAsync(() => (selectedId ? get(`/learning-path/${selectedId}`) : Promise.resolve(null)), [selectedId]);
   const prog = useAsync(() => get("/progress"), []);
+
+  // Guard: prevent crash when user is null
+  if (!user) return <Navigate to="/login" replace />;
 
   if (enrollLoaded && !selectedId)
     return (

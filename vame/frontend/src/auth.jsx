@@ -16,12 +16,23 @@ function decodeUser(token) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [enrollments, setEnrollments] = useState([])
+  const [enrollLoaded, setEnrollLoaded] = useState(false)
+  const [selectedId, setSelectedId] = useState(null)
 
   useEffect(() => {
     const token = getToken()
     if (token) {
       const payload = decodeUser(token)
       if (payload) setUser({ id: payload.sub, role: payload.role })
+      // fetch enrollments
+      api("/enrollments").then((list) => {
+        setEnrollments(list)
+        if (list.length > 0) setSelectedId(list[0].curriculum_id)
+        setEnrollLoaded(true)
+      }).catch(() => setEnrollLoaded(true))
+    } else {
+      setEnrollLoaded(true)
     }
     setLoading(false)
   }, [])
@@ -30,6 +41,11 @@ export function AuthProvider({ children }) {
     const data = await api("/auth/login", { method: "POST", body: { email, password } })
     setToken(data.access_token)
     setUser(data.user)
+    // reload enrollments
+    const list = await api("/enrollments")
+    setEnrollments(list)
+    if (list.length > 0) setSelectedId(list[0].curriculum_id)
+    setEnrollLoaded(true)
   }
 
   const register = async (name, email, password) => {
@@ -41,10 +57,25 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setToken(null)
     setUser(null)
+    setEnrollments([])
+    setEnrollLoaded(false)
+    setSelectedId(null)
   }
 
+  const selectCurriculum = (id) => setSelectedId(id)
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      enrollments,
+      enrollLoaded,
+      selectedId,
+      selectCurriculum,
+      login,
+      register,
+      logout
+    }}>
       {children}
     </AuthContext.Provider>
   )
