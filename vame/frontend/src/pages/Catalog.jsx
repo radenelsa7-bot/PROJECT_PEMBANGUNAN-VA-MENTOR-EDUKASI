@@ -5,7 +5,7 @@ import { get, post } from "../api.js";
 import { BackButton, Notice, useAsync } from "../components/common.jsx";
 
 export default function Catalog() {
-  const { refreshEnrollments, selectCurriculum } = useAuth();
+  const { selectCurriculum } = useAuth();
   const nav = useNavigate();
   const { data, error, reload } = useAsync(() => get("/curricula"), []);
   const [err, setErr] = useState("");
@@ -16,7 +16,6 @@ export default function Catalog() {
     setErr("");
     try {
       if (!c.enrolled) await post("/enrollments", { curriculum_id: c.id });
-      await refreshEnrollments();
       selectCurriculum(c.id);
       nav(`/curricula/${c.id}`);
     } catch (e) {
