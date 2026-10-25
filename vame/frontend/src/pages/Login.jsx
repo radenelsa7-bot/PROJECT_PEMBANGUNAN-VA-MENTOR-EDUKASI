@@ -56,12 +56,7 @@ export default function Login() {
           {mode === "login" ? "Daftar" : "Masuk"}
         </button>
       </p>
-      {mode === "login" && (
-        <div className="demo-hint">
-          Akun demo: Learner <code>budi@vame.id</code> / <code>belajar123</code><br />
-          Admin <code>admin@vame.id</code> / <code>admin123</code>
-        </div>
-      )}
+   
     </form>
   );
 }
