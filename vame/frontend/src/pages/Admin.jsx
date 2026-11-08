@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { get, post, put } from "../api.js";
+import { get, post, put, remove } from "../api.js";
 import { Notice, useAsync } from "../components/common.jsx";
 
 const TABS = [
@@ -55,11 +55,16 @@ function Overview() {
 
 /* ---------------- Kurikulum ---------------- */
 const EMPTY_CUR = { code: "", title: "", short_name: "", description: "", level: "Dasar", topic_label: "", est_hours: 10, mentor_name: "Tutor AI VAME" };
+const EMPTY_RP = { module_id: "", title: "", objective: "", keywords: "", references: "", order: 1, content: "" };
 
 function CurriculumDetail({ id, onChange }) {
   const { data: c, reload } = useAsync(() => get(`/curricula/${id}`), [id]);
-  const [mod, setMod] = useState({ title: "", label: "MODUL", order: 1 });
-  const [rp, setRp] = useState({ module_id: "", title: "", objective: "", keywords: "", references: "", order: 1, content: "" });
+  const [mod, setMod] = useState({ title: "", label: "MODUL", order: "" });
+  const [addingModule, setAddingModule] = useState(false);
+  const [deletingModule, setDeletingModule] = useState(null);
+  const [rp, setRp] = useState({ ...EMPTY_RP });
+  const [addingReadingPoint, setAddingReadingPoint] = useState(false);
+  const [editingReadingPointId, setEditingReadingPointId] = useState(null);
   const [msg, say] = useMsg();
   if (!c) return <div className="center-note">Memuat…</div>;
 
@@ -73,16 +78,121 @@ function CurriculumDetail({ id, onChange }) {
       say("err", e.message);
     }
   };
-  const nextModuleOrder = (c.modules.at(-1)?.order || 0) + 1;
+  const nextModuleOrder = Math.max(0, ...c.modules.map((module) => module.order)) + 1;
+  const selectedModule = c.modules.find((module) => String(module.id) === String(rp.module_id));
+  const duplicateReadingTitle = Boolean(
+    rp.title.trim() &&
+    selectedModule?.reading_points.some((point) =>
+      point.id !== editingReadingPointId &&
+      point.title.trim().toLocaleLowerCase() === rp.title.trim().toLocaleLowerCase()
+    )
+  );
+  const addModule = async () => {
+    if (addingModule) return;
+    setAddingModule(true);
+    try {
+      await post(`/curricula/${c.id}/modules`, { ...mod, order: Number(mod.order) || nextModuleOrder });
+      setMod({ title: "", label: "MODUL", order: "" });
+      say("ok", "Modul ditambahkan.");
+      reload();
+      onChange();
+    } catch (e) {
+      say("err", e.message);
+    } finally {
+      setAddingModule(false);
+    }
+  };
+  const deleteModule = async (module) => {
+    if (deletingModule !== null) return;
+    const confirmed = window.confirm(
+      `Hapus modul "${module.title}" beserta semua poin bacaannya? Tindakan ini tidak dapat dibatalkan. Modul yang sudah memiliki progres atau riwayat belajar tidak dapat dihapus.`
+    );
+    if (!confirmed) return;
+
+    setDeletingModule(module.id);
+    try {
+      await remove(`/modules/${module.id}`);
+      if (String(rp.module_id) === String(module.id)) {
+        setRp({ ...EMPTY_RP });
+        setEditingReadingPointId(null);
+      }
+      say("ok", "Modul dan poin bacaannya berhasil dihapus.");
+      reload();
+      onChange();
+    } catch (e) {
+      say("err", e.message);
+    } finally {
+      setDeletingModule(null);
+    }
+  };
+  const addReadingPoint = async () => {
+    if (addingReadingPoint || duplicateReadingTitle) return;
+    setAddingReadingPoint(true);
+    try {
+      const payload = {
+        title: rp.title,
+        objective: rp.objective,
+        references: rp.references,
+        content: rp.content,
+        order: rp.order,
+        keywords: rp.keywords.split(",").map((keyword) => keyword.trim()).filter(Boolean),
+      };
+      if (editingReadingPointId !== null) {
+        await put(`/reading-points/${editingReadingPointId}`, payload);
+      } else {
+        await post(`/modules/${rp.module_id}/reading-points`, payload);
+      }
+      setRp({ ...EMPTY_RP });
+      const wasEditing = editingReadingPointId !== null;
+      setEditingReadingPointId(null);
+      say("ok", wasEditing ? "Perubahan poin bacaan disimpan." : "Poin bacaan ditambahkan.");
+      reload();
+      onChange();
+    } catch (e) {
+      say("err", e.message);
+    } finally {
+      setAddingReadingPoint(false);
+    }
+  };
+  const editReadingPoint = (module, point) => {
+    setEditingReadingPointId(point.id);
+    setRp({
+      module_id: String(module.id),
+      title: point.title,
+      objective: point.objective,
+      keywords: point.keywords.join(", "),
+      references: point.references,
+      order: point.order,
+      content: point.content,
+    });
+  };
+  const cancelReadingPointEdit = () => {
+    setEditingReadingPointId(null);
+    setRp({ ...EMPTY_RP });
+  };
 
   return (
     <div style={{ marginTop: 14 }}>
-      {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
+      {msg && (
+        <div className="admin-feedback" role={msg.kind === "err" ? "alert" : "status"} aria-live="polite">
+          <Notice kind={msg.kind}>{msg.text}</Notice>
+        </div>
+      )}
       {c.modules.map((m) => (
         <div key={m.id} style={{ margin: "12px 0" }}>
-          <b>{String(m.order).padStart(2, "0")} · {m.title}</b> <span className="mono" style={{ color: "var(--muted)" }}>({m.label})</span>
-          <ul style={{ margin: "4px 0 0", color: "var(--muted)" }}>
-            {m.reading_points.map((r) => <li key={r.id}>{r.order}. {r.title} <small>· {r.keywords.join(", ")}</small></li>)}
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <div><b>{String(m.order).padStart(2, "0")} · {m.title}</b> <span className="mono" style={{ color: "var(--muted)" }}>({m.label})</span></div>
+            <button className="btn sm danger" disabled={deletingModule !== null} onClick={() => deleteModule(m)}>
+              {deletingModule === m.id ? "Menghapus…" : "Hapus"}
+            </button>
+          </div>
+          <ul className="admin-reading-points" style={{ margin: "4px 0 0", color: "var(--muted)" }}>
+            {m.reading_points.map((r) => (
+              <li key={r.id}>
+                <span>{r.order}. {r.title} <small>· {r.keywords.join(", ")}</small></span>
+                <button className="btn sm" disabled={addingReadingPoint} onClick={() => editReadingPoint(m, r)}>Edit</button>
+              </li>
+            ))}
           </ul>
         </div>
       ))}
@@ -91,13 +201,13 @@ function CurriculumDetail({ id, onChange }) {
       <div className="row">
         <input className="field grow" placeholder="Judul modul" value={mod.title} onChange={(e) => setMod({ ...mod, title: e.target.value })} />
         <input className="field" style={{ width: 150 }} placeholder="Label" value={mod.label} onChange={(e) => setMod({ ...mod, label: e.target.value })} />
-        <input className="field" style={{ width: 80 }} type="number" min={1} value={mod.order || nextModuleOrder} onChange={(e) => setMod({ ...mod, order: Number(e.target.value) })} />
-        <button className="btn primary" onClick={() => run(() => post(`/curricula/${c.id}/modules`, { ...mod, order: mod.order || nextModuleOrder }), "Modul ditambahkan.")}>Tambah</button>
+        <input className="field" style={{ width: 80 }} type="number" min={1} value={mod.order || nextModuleOrder} onChange={(e) => setMod({ ...mod, order: e.target.value })} />
+        <button className="btn primary" disabled={addingModule || !mod.title.trim()} onClick={addModule}>{addingModule ? "Menambahkan…" : "Tambah"}</button>
       </div>
 
-      <h4 style={{ margin: "18px 0 8px" }}>Tambah poin bacaan wajib</h4>
+      <h4 style={{ margin: "18px 0 8px" }}>{editingReadingPointId !== null ? "Edit poin bacaan wajib" : "Tambah poin bacaan wajib"}</h4>
       <div className="row" style={{ alignItems: "stretch" }}>
-        <select className="field" style={{ width: 240 }} value={rp.module_id} onChange={(e) => setRp({ ...rp, module_id: e.target.value })}>
+        <select className="field" style={{ width: 240 }} value={rp.module_id} disabled={editingReadingPointId !== null} onChange={(e) => setRp({ ...rp, module_id: e.target.value })}>
           <option value="">Pilih modul…</option>
           {c.modules.map((m) => <option key={m.id} value={m.id}>{m.order}. {m.title}</option>)}
         </select>
@@ -108,19 +218,20 @@ function CurriculumDetail({ id, onChange }) {
       <input className="field" style={{ marginTop: 10 }} placeholder="Kata kunci (pisahkan dengan koma)" value={rp.keywords} onChange={(e) => setRp({ ...rp, keywords: e.target.value })} />
       <input className="field" style={{ marginTop: 10 }} placeholder="Referensi sumber (wajib, BR-05)" value={rp.references} onChange={(e) => setRp({ ...rp, references: e.target.value })} />
       <textarea className="field" style={{ marginTop: 10 }} placeholder="Isi materi (boleh memakai ``` untuk blok kode)" value={rp.content} onChange={(e) => setRp({ ...rp, content: e.target.value })} />
+      {duplicateReadingTitle && <p className="field-error" role="alert">Judul tersebut sudah ada di modul ini. Gunakan judul yang berbeda.</p>}
       <button
         className="btn primary"
         style={{ marginTop: 10 }}
-        disabled={!rp.module_id}
-        onClick={() =>
-          run(
-            () => post(`/modules/${rp.module_id}/reading-points`, { title: rp.title, objective: rp.objective, references: rp.references, content: rp.content, order: rp.order, keywords: rp.keywords.split(",").map((k) => k.trim()).filter(Boolean) }),
-            "Poin bacaan ditambahkan."
-          )
-        }
+        disabled={!rp.module_id || !rp.title.trim() || duplicateReadingTitle || addingReadingPoint}
+        onClick={addReadingPoint}
       >
-        Tambah poin bacaan
+        {addingReadingPoint ? "Menyimpan…" : editingReadingPointId !== null ? "Simpan perubahan" : "Tambah poin bacaan"}
       </button>
+      {editingReadingPointId !== null && (
+        <button className="btn" style={{ margin: "10px 0 0 8px" }} disabled={addingReadingPoint} onClick={cancelReadingPointEdit}>
+          Batal
+        </button>
+      )}
     </div>
   );
 }
@@ -175,27 +286,97 @@ function Curricula() {
       </section>
 
       <section className="card panel">
-        <h3>Buat kurikulum baru</h3>
-        <div className="row">
-          <input className="field" style={{ width: 150 }} placeholder="Kode (mis. PY-101)" value={form.code} onChange={set("code")} />
-          <input className="field grow" placeholder="Judul" value={form.title} onChange={set("title")} />
-          <input className="field" style={{ width: 180 }} placeholder="Nama singkat" value={form.short_name} onChange={set("short_name")} />
+        <h3>Buat kurikulum dari awal</h3>
+        <p className="admin-help">
+          Isi informasi dasar lalu pilih <b>Buat kurikulum</b>. Setelah tersimpan, cari di daftar kurikulum dan tekan <b>Kelola</b> untuk menambahkan modul serta materi bacaan.
+        </p>
+        <div className="admin-form-grid">
+          <label className="admin-field">
+            Kode kurikulum <span>(unik, misalnya PY-101)</span>
+            <input className="field" placeholder="PY-101" value={form.code} onChange={set("code")} />
+          </label>
+          <label className="admin-field admin-field-wide">
+            Nama kurikulum
+            <input className="field" placeholder="Contoh: Dasar Pemrograman Python" value={form.title} onChange={set("title")} />
+          </label>
+          <label className="admin-field">
+            Nama pendek <span>(boleh dikosongkan)</span>
+            <input className="field" placeholder="Contoh: Python Dasar" value={form.short_name} onChange={set("short_name")} />
+          </label>
+          <label className="admin-field admin-field-wide">
+            Deskripsi singkat <span>(boleh dikosongkan)</span>
+            <textarea className="field" placeholder="Apa yang akan dipelajari peserta?" value={form.description} onChange={set("description")} />
+          </label>
+          <label className="admin-field">
+            Tingkat
+            <input className="field" placeholder="Dasar" value={form.level} onChange={set("level")} />
+          </label>
+          <label className="admin-field">
+            Topik atau versi <span>(opsional)</span>
+            <input className="field" placeholder="Contoh: Python 3.12" value={form.topic_label} onChange={set("topic_label")} />
+          </label>
+          <label className="admin-field">
+            Perkiraan waktu <span>(jam)</span>
+            <input className="field" type="number" min={1} value={form.est_hours} onChange={(e) => setForm({ ...form, est_hours: Number(e.target.value) })} />
+          </label>
+          <label className="admin-field admin-field-wide">
+            Nama mentor AI
+            <input className="field" placeholder="Tutor AI VAME" value={form.mentor_name} onChange={set("mentor_name")} />
+          </label>
         </div>
-        <textarea className="field" style={{ marginTop: 10 }} placeholder="Deskripsi" value={form.description} onChange={set("description")} />
-        <div className="row" style={{ marginTop: 10 }}>
-          <input className="field" style={{ width: 140 }} placeholder="Tingkat" value={form.level} onChange={set("level")} />
-          <input className="field" style={{ width: 160 }} placeholder="Label topik (Python 3.12)" value={form.topic_label} onChange={set("topic_label")} />
-          <input className="field" style={{ width: 110 }} type="number" min={1} value={form.est_hours} onChange={(e) => setForm({ ...form, est_hours: Number(e.target.value) })} />
-          <input className="field grow" placeholder="Nama mentor" value={form.mentor_name} onChange={set("mentor_name")} />
-          <button className="btn primary" onClick={() => run(async () => { await post("/curricula", form); setForm(EMPTY_CUR); }, "Kurikulum dibuat. Klik “Kelola” untuk menambah modul.")}>Simpan</button>
-        </div>
+        <button
+          className="btn primary"
+          style={{ marginTop: 14 }}
+          disabled={form.code.trim().length < 2 || form.title.trim().length < 3}
+          onClick={() => run(async () => { await post("/curricula", form); setForm(EMPTY_CUR); }, "Kurikulum dibuat. Cari di daftar lalu tekan “Kelola” untuk menambahkan modul dan materi.")}
+        >
+          Buat kurikulum
+        </button>
       </section>
 
-      <section className="card panel">
-        <h3>Impor kurikulum (JSON)</h3>
-        <textarea className="field" style={{ minHeight: 140, fontFamily: "var(--mono)", fontSize: 13 }} placeholder='{"code":"...","title":"...","modules":[{"title":"...","order":1,"reading_points":[{...}]}]}' value={json} onChange={(e) => setJson(e.target.value)} />
-        <button className="btn primary" style={{ marginTop: 10 }} onClick={() => run(async () => { await post("/curricula/import", JSON.parse(json)); setJson(""); }, "Kurikulum berhasil diimpor.")}>Impor</button>
-      </section>
+      <details className="advanced-import">
+        <summary>Impor kurikulum dari JSON (fitur lanjutan)</summary>
+        <p className="admin-help">
+          Gunakan ini hanya jika sudah punya data JSON lengkap. Berbeda dengan form di atas, impor membuat kurikulum sekaligus modul dan poin bacaannya.
+        </p>
+        <pre className="import-example">{`{
+  "code": "PY-101",
+  "title": "Dasar Python",
+  "modules": [{
+    "title": "Pengenalan",
+    "order": 1,
+    "reading_points": [{
+      "title": "Apa itu Python?",
+      "order": 1,
+      "content": "Isi materi",
+      "objective": "Tujuan belajar",
+      "keywords": ["python"],
+      "references": "Sumber materi"
+    }]
+  }]
+}`}</pre>
+        <label className="admin-field">
+          Tempel data JSON lengkap
+          <textarea className="field import-json" placeholder="Tempel JSON kurikulum di sini" value={json} onChange={(e) => setJson(e.target.value)} />
+        </label>
+        <button
+          className="btn"
+          style={{ marginTop: 10 }}
+          disabled={!json.trim()}
+          onClick={() => run(async () => {
+            let payload;
+            try {
+              payload = JSON.parse(json);
+            } catch {
+              throw new Error("Format JSON tidak valid. Periksa tanda kutip dan kurungnya.");
+            }
+            await post("/curricula/import", payload);
+            setJson("");
+          }, "Kurikulum dan seluruh modul berhasil diimpor.")}
+        >
+          Impor kurikulum
+        </button>
+      </details>
     </>
   );
 }

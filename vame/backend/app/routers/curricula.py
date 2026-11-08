@@ -5,7 +5,20 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_current_user, require_admin
-from ..models import Curriculum, Enrollment, Module, ReadingPoint, User
+from ..models import (
+    AnalyticsEvent,
+    Answer,
+    ChatSession,
+    Curriculum,
+    Enrollment,
+    EvaluationAttempt,
+    LearningProgress,
+    Module,
+    Question,
+    ReadingPoint,
+    StateTransitionLog,
+    User,
+)
 from ..schemas import (
     CurriculumImport,
     CurriculumIn,
@@ -25,6 +38,15 @@ def _conflict(msg: str) -> HTTPException:
 
 def _not_found(what: str) -> HTTPException:
     return HTTPException(404, {"code": "NOT_FOUND", "message": f"{what} tidak ditemukan."})
+
+
+def _duplicate_reading_title(db: Session, module_id: int, title: str, exclude_id: int | None = None) -> bool:
+    points = db.scalars(select(ReadingPoint).where(ReadingPoint.module_id == module_id))
+    normalized_title = title.strip().casefold()
+    return any(
+        point.id != exclude_id and point.title.strip().casefold() == normalized_title
+        for point in points
+    )
 
 
 def rp_admin(rp: ReadingPoint) -> dict:
@@ -125,11 +147,38 @@ def update_module(mid: int, body: ModuleUpdate, db: Session = Depends(get_db), _
     return {"id": m.id, "title": m.title, "label": m.label, "order": m.order}
 
 
+@router.delete("/modules/{mid}", summary="Hapus modul beserta poin bacaannya")
+def delete_module(mid: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    module = db.get(Module, mid)
+    if not module:
+        raise _not_found("Modul")
+
+    point_ids = select(ReadingPoint.id).where(ReadingPoint.module_id == mid)
+    has_learning_data = any(
+        db.scalar(select(model.id).where(model.reading_point_id.in_(point_ids)).limit(1))
+        for model in (LearningProgress, StateTransitionLog, ChatSession, EvaluationAttempt, AnalyticsEvent)
+    )
+    has_answer = db.scalar(
+        select(Answer.id)
+        .join(Question, Answer.question_id == Question.id)
+        .where(Question.reading_point_id.in_(point_ids))
+        .limit(1)
+    )
+    if has_learning_data or has_answer:
+        raise _conflict("Modul ini sudah memiliki progres atau riwayat belajar sehingga tidak dapat dihapus.")
+
+    db.delete(module)
+    db.commit()
+    return {"deleted": True}
+
+
 # -------------------- poin bacaan --------------------
 @router.post("/modules/{mid}/reading-points", status_code=201, summary="Tambah poin bacaan wajib (FR-07)")
 def add_reading_point(mid: int, body: ReadingPointIn, db: Session = Depends(get_db), _: User = Depends(require_admin)):
     if not db.get(Module, mid):
         raise _not_found("Modul")
+    if _duplicate_reading_title(db, mid, body.title):
+        raise _conflict(f"Judul poin bacaan '{body.title.strip()}' sudah ada pada modul ini.")
     if db.scalar(select(ReadingPoint).where(ReadingPoint.module_id == mid, ReadingPoint.order == body.order)):
         raise _conflict(f"Urutan poin bacaan {body.order} sudah dipakai pada modul ini.")
     data = body.model_dump()
@@ -146,6 +195,8 @@ def update_reading_point(rid: int, body: ReadingPointUpdate, db: Session = Depen
     if not rp:
         raise _not_found("Poin bacaan")
     data = body.model_dump(exclude_unset=True)
+    if "title" in data and _duplicate_reading_title(db, rp.module_id, data["title"], exclude_id=rp.id):
+        raise _conflict(f"Judul poin bacaan '{data['title'].strip()}' sudah ada pada modul ini.")
     if "order" in data and data["order"] != rp.order:
         if db.scalar(select(ReadingPoint).where(ReadingPoint.module_id == rp.module_id, ReadingPoint.order == data["order"])):
             raise _conflict(f"Urutan poin bacaan {data['order']} sudah dipakai.")
@@ -168,6 +219,9 @@ def import_curriculum(db: Session, body: CurriculumImport) -> Curriculum:
         raise HTTPException(422, {"code": "VALIDATION", "message": "Urutan modul harus unik."})
     c = Curriculum(**body.model_dump(exclude={"modules"}))
     for m in body.modules:
+        normalized_titles = [p.title.strip().casefold() for p in m.reading_points]
+        if len(set(normalized_titles)) != len(normalized_titles):
+            raise HTTPException(422, {"code": "VALIDATION", "message": f"Judul poin bacaan pada modul '{m.title}' harus unik."})
         pts_orders = [p.order for p in m.reading_points]
         if len(set(pts_orders)) != len(pts_orders):
             raise HTTPException(422, {"code": "VALIDATION", "message": f"Urutan poin bacaan pada modul '{m.title}' harus unik."})

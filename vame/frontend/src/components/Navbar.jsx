@@ -5,14 +5,16 @@ import { get, post } from "../api.js";
 import { Modal, StatusBadge, pointRoute } from "./common.jsx";
 
 function initials(name = "") {
-  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+  return String(name || "P").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 }
 
 export default function Navbar() {
   const { user, selected, selectedId, logout } = useAuth();
   const nav = useNavigate();
   const { pathname } = useLocation();
-  const learner = user.role === "learner";
+  const safeName = user?.name ?? "Pengguna";
+  const safeEmail = user?.email ?? "";
+  const learner = user?.role === "learner";
 
   const [q, setQ] = useState("");
   const [hits, setHits] = useState(null);
@@ -148,15 +150,15 @@ export default function Navbar() {
           </button>
           <div className="user-box">
             <button className="avatar" onClick={() => setMenu(menu === "user" ? null : "user")} aria-label="Menu akun">
-              {initials(user.name)}
+              {initials(safeName)}
             </button>
             <div className="user-meta">
-              <b>{user.name}</b>
+              <b>{safeName}</b>
               <span>{learner ? `Progres: ${selected?.percent ?? 0}%` : "Curriculum Admin"}</span>
             </div>
             {menu === "user" && (
               <div className="popover" style={{ width: 220 }}>
-                <h4>{user.email}</h4>
+                <h4>{safeEmail}</h4>
                 <button
                   className="btn danger"
                   style={{ width: "100%", marginTop: 6 }}

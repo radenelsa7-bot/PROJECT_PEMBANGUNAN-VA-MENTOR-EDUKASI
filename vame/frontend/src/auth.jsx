@@ -4,6 +4,7 @@ import { api, setToken, getToken } from "./api.js"
 const AuthContext = createContext(null)
 
 function decodeUser(token) {
+  if (!token || typeof token !== "string") return null
   const payload = token.split(".")[1]
   if (!payload) return null
   try {
@@ -23,18 +24,27 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = getToken()
     if (token) {
-      const payload = decodeUser(token)
-      if (payload) setUser({ id: payload.sub, role: payload.role })
-      // fetch enrollments
+      api("/auth/me").then((profile) => {
+        setUser(profile)
+      }).catch(() => {
+        const payload = decodeUser(token)
+        if (payload) {
+          setUser({ id: Number(payload.sub), role: payload.role, name: "User", email: "" })
+        } else {
+          setUser(null)
+        }
+      }).finally(() => setLoading(false))
+
       api("/enrollments").then((list) => {
         setEnrollments(list)
         if (list.length > 0) setSelectedId(list[0].curriculum_id)
         setEnrollLoaded(true)
       }).catch(() => setEnrollLoaded(true))
     } else {
+      setUser(null)
       setEnrollLoaded(true)
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   const login = async (email, password) => {

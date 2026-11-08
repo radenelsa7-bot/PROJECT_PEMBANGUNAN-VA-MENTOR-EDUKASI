@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [showGuide, setShowGuide] = useState(false);
   const path = useAsync(() => (selectedId ? get(`/learning-path/${selectedId}`) : Promise.resolve(null)), [selectedId]);
   const prog = useAsync(() => get("/progress"), []);
+  const firstName = user?.name?.split(" ")[0] ?? "Pengguna";
 
   // Guard: prevent crash when user is null
   if (!user) return <Navigate to="/login" replace />;
@@ -17,7 +18,7 @@ export default function Dashboard() {
   if (enrollLoaded && !selectedId)
     return (
       <>
-        <h1 className="page-title">Halo, {user.name.split(" ")[0]}!</h1>
+        <h1 className="page-title">Halo, {firstName}!</h1>
         <p className="page-sub">Kamu belum mengikuti kurikulum apa pun.</p>
         <Link className="btn primary" to="/catalog">Pilih kurikulum</Link>
       </>
@@ -30,7 +31,7 @@ export default function Dashboard() {
   const o = prog.data?.overall;
   return (
     <>
-      <h1 className="page-title">Halo, {user.name.split(" ")[0]} 👋</h1>
+      <h1 className="page-title">Halo, {firstName} 👋</h1>
       <p className="page-sub">{d.curriculum.title} · hari ke-{d.activity.day_number}</p>
 
       <div className="flow-head">

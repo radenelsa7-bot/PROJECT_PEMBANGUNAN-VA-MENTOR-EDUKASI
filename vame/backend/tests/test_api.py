@@ -127,11 +127,48 @@ def test_roles_logout_and_validation(env, learner, admin):
     rp = {"title": "T", "content": "c", "objective": "o", "keywords": ["k"], "references": "Sumber", "order": 1}
     assert env.post(f"{API}/modules/{mid}/reading-points", json=rp, headers=admin).status_code == 201
     assert env.post(f"{API}/modules/{mid}/reading-points", json=rp, headers=admin).status_code == 409
+    assert env.post(f"{API}/modules/{mid}/reading-points", json={**rp, "title": " t ", "order": 2}, headers=admin).status_code == 409
+    second_point = env.post(f"{API}/modules/{mid}/reading-points", json={**rp, "title": "U", "order": 2}, headers=admin)
+    assert second_point.status_code == 201
+    assert env.put(f"{API}/reading-points/{second_point.json()['id']}", json={"title": "t"}, headers=admin).status_code == 409
+    updated = env.put(
+        f"{API}/reading-points/{second_point.json()['id']}",
+        json={"title": "Poin yang diperbarui", "content": "Materi baru"},
+        headers=admin,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["title"] == "Poin yang diperbarui" and updated.json()["content"] == "Materi baru"
     assert env.post(f"{API}/modules/{mid}/reading-points", json={**rp, "order": 2, "references": ""}, headers=admin).status_code == 422  # FR-08
 
     assert env.get(f"{API}/auth/me", headers=learner).status_code == 200
     assert env.post(f"{API}/auth/logout", headers=learner).status_code == 200
     assert env.get(f"{API}/auth/me", headers=learner).status_code == 401  # FR-03
+
+
+def test_admin_can_delete_unused_module_with_reading_points(env, learner, admin):
+    cid = env.get(f"{API}/curricula", headers=admin).json()[0]["id"]
+    mid = env.post(f"{API}/curricula/{cid}/modules", json={"title": "Modul sementara", "order": 99}, headers=admin).json()["id"]
+    point = {"title": "Poin sementara", "content": "Materi", "objective": "Tujuan", "keywords": ["uji"], "references": "Sumber", "order": 1}
+    assert env.post(f"{API}/modules/{mid}/reading-points", json=point, headers=admin).status_code == 201
+
+    assert env.delete(f"{API}/modules/{mid}", headers=learner).status_code == 403
+    response = env.delete(f"{API}/modules/{mid}", headers=admin)
+    assert response.status_code == 200 and response.json() == {"deleted": True}
+    modules = env.get(f"{API}/curricula/{cid}", headers=admin).json()["modules"]
+    assert all(module["id"] != mid for module in modules)
+
+
+def test_module_with_learning_progress_cannot_be_deleted(env, learner, admin):
+    cid = env.get(f"{API}/curricula", headers=admin).json()[0]["id"]
+    mid = env.post(f"{API}/curricula/{cid}/modules", json={"title": "Modul terpakai", "order": 99}, headers=admin).json()["id"]
+    point = {"title": "Poin terpakai", "content": "Materi", "objective": "Tujuan", "keywords": ["uji"], "references": "Sumber", "order": 1}
+    env.post(f"{API}/modules/{mid}/reading-points", json=point, headers=admin)
+    assert env.post(f"{API}/enrollments", json={"curriculum_id": cid}, headers=learner).status_code == 201
+
+    response = env.delete(f"{API}/modules/{mid}", headers=admin)
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "CONFLICT"
+    assert any(module["id"] == mid for module in env.get(f"{API}/curricula/{cid}", headers=admin).json()["modules"])
 
 
 def test_flag_and_admin_review(env, learner, admin):

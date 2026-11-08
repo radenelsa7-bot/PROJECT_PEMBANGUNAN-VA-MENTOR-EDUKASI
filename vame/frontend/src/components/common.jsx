@@ -12,6 +12,8 @@ export const STATUS_META = {
 };
 export const STATUS_ORDER = Object.keys(STATUS_META);
 
+import { createPortal } from "react-dom";
+
 export function StatusBadge({ status }) {
   return <span className={`stbadge st-${status}`}>{STATUS_META[status]?.label || status}</span>;
 }
@@ -142,7 +144,7 @@ export function Markdown({ text }) {
 }
 
 export function Modal({ onClose, children }) {
-  return (
+  return createPortal(
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         {children}
@@ -152,6 +154,7 @@ export function Modal({ onClose, children }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
